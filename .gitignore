@@ -11,6 +11,10 @@ go.work.sum
 # env file
 .env
 
+# dist
+dist
+bin
+
 # Editor/IDE
 .idea/
 .vscode/
