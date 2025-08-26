@@ -26,8 +26,11 @@ func providerConfigure(ctx context.Context, d *schema.ResourceData) (interface{}
 
     client := newClient(url, username, password)
 
-    _, err := client.rest.R().Get("/service/public/v2/api/policy")
+    resp, err := client.rest.R().Get("/service/public/v2/api/policy")
     if err != nil { return nil, diag.FromErr(err) }
+    if resp.IsError() {
+      return nil, diag.Errorf("failed to connect to Ranger API: %s", resp.Status())
+    }
 
     return client, nil
 }
