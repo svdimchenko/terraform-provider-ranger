@@ -1,11 +1,13 @@
 package ranger
 
 import (
-  "context"
-  "fmt"
+	"context"
+	"encoding/json"
+	"fmt"
+	"time"
 
-  "github.com/hashicorp/terraform-plugin-sdk/v2/diag"
-  "github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 func resourcePolicy() *schema.Resource {
@@ -14,6 +16,40 @@ func resourcePolicy() *schema.Resource {
     ReadContext:   resourcePolicyRead,
     UpdateContext: resourcePolicyUpdate,
     DeleteContext: resourcePolicyDelete,
+
+    Importer: &schema.ResourceImporter{
+        StateContext: func(ctx context.Context, d *schema.ResourceData, m interface{}) ([]*schema.ResourceData, error) {
+            client := m.(*Client)
+            policyID := d.Id()
+
+            // Call Ranger API to get policy by ID
+            url := fmt.Sprintf("/service/public/v2/api/policy/%s", policyID)
+            resp, err := client.rest.R().Get(url)
+            if err != nil {
+                return nil, fmt.Errorf("failed to import Ranger policy (ID: %s): %v", policyID, err)
+            }
+            if resp.StatusCode() == 404 {
+                return nil, fmt.Errorf("policy with ID %s not found", policyID)
+            }
+            if resp.IsError() {
+                return nil, fmt.Errorf("failed to import Ranger policy (ID: %s): %s", policyID, resp.String())
+            }
+
+            // Parse response JSON
+            var policy struct {
+                ID int `json:"id"`
+            }
+
+            if err := json.Unmarshal(resp.Body(), &policy); err != nil {
+                return nil, fmt.Errorf("failed to parse policy JSON: %v", err)
+            }
+
+            // Set Terraform state
+            d.SetId(fmt.Sprintf("%d", policy.ID))
+            d.Set("definition", string(resp.Body()))
+            return []*schema.ResourceData{d}, nil
+        },
+    },
 
     Schema: map[string]*schema.Schema{
       "service": {
@@ -35,8 +71,6 @@ func resourcePolicy() *schema.Resource {
 
 func resourcePolicyCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
   client := m.(*Client)
-  service := d.Get("service").(string)
-  name := d.Get("name").(string)
   def := d.Get("definition").(string)
 
   resp, err := client.rest.R().
@@ -48,8 +82,15 @@ func resourcePolicyCreate(ctx context.Context, d *schema.ResourceData, m interfa
   if resp.IsError() {
     return diag.Errorf("Failed to create policy: %s", resp.String())
   }
-
-  d.SetId(fmt.Sprintf("%s/%s", service, name))
+  // Parse response to get the policy ID
+	var policy struct {
+		ID int `json:"id"`
+	}
+  if err := json.Unmarshal(resp.Body(), &policy); err != nil {
+		return diag.FromErr(err)
+	}
+	d.SetId(fmt.Sprintf("%d", policy.ID))
+  time.Sleep(2 * time.Second)
   return resourcePolicyRead(ctx, d, m)
 }
 
@@ -61,7 +102,6 @@ func resourcePolicyRead(ctx context.Context, d *schema.ResourceData, m interface
   url := fmt.Sprintf("/service/public/v2/api/service/%s/policy/%s", service, name)
   resp, err := client.rest.R().Get(url)
   if resp.StatusCode() == 404 {
-    d.SetId("")
     return nil
   }
   if err != nil {
@@ -71,6 +111,17 @@ func resourcePolicyRead(ctx context.Context, d *schema.ResourceData, m interface
     return diag.Errorf("Failed to read policy: %s", resp.String())
   }
 
+  // Parse response JSON
+	var policy struct {
+		ID int `json:"id"`
+	}
+
+	if err := json.Unmarshal(resp.Body(), &policy); err != nil {
+		return diag.FromErr(err)
+	}
+
+	// Use API-provided ID
+	d.SetId(fmt.Sprintf("%d", policy.ID))
   d.Set("definition", string(resp.Body()))
   return nil
 }
@@ -78,9 +129,9 @@ func resourcePolicyRead(ctx context.Context, d *schema.ResourceData, m interface
 func resourcePolicyUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
   client := m.(*Client)
   def := d.Get("definition").(string)
-  name := d.Get("name").(string)
+  policyID := d.Id()
 
-  url := fmt.Sprintf("/service/public/v2/api/policy/%s", name)
+  url := fmt.Sprintf("/service/public/v2/api/policy/%s", policyID)
   resp, err := client.rest.R().SetBody(def).Put(url)
   if err != nil {
     return diag.FromErr(err)
@@ -93,10 +144,9 @@ func resourcePolicyUpdate(ctx context.Context, d *schema.ResourceData, m interfa
 
 func resourcePolicyDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
   client := m.(*Client)
-  service := d.Get("service").(string)
-  name := d.Get("name").(string)
+  policyID := d.Id()
 
-  url := fmt.Sprintf("/service/public/v2/api/service/%s/policy/%s", service, name)
+  url := fmt.Sprintf("/service/public/v2/api/policy/%s", policyID)
   resp, err := client.rest.R().Delete(url)
   if err != nil {
     return diag.FromErr(err)
