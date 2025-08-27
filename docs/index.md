@@ -15,3 +15,7 @@ description: |-
 - `password` (String, Sensitive)
 - `url` (String) Base URL of the Ranger server (e.g. <https://ranger-host:6080>)
 - `username` (String, Sensitive)
+
+### Optional
+
+- `skip_tls_verify` (Boolean) Skip TLS certificate verification (insecure, use only for testing)

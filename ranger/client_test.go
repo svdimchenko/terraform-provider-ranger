@@ -25,6 +25,11 @@ func testSchema(t *testing.T) *schema.ResourceData {
 			Type:     schema.TypeString,
 			Required: true,
 		},
+		"skip_tls_verify": {
+			Type:     schema.TypeBool,
+			Optional: true,
+			Default: false,
+		},
 	}
 	return schema.TestResourceDataRaw(t, p, nil)
 }
@@ -46,6 +51,7 @@ func TestProviderConfigure_Success(t *testing.T) {
 	d.Set("url", server.URL)
 	d.Set("username", "testuser")
 	d.Set("password", "testpass")
+	d.Set("skip_tls_verify", false)
 
 	// Call configure
 	clientIface, diags := providerConfigure(context.Background(), d)
