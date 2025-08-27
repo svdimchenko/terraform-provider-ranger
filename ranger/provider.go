@@ -22,6 +22,13 @@ func Provider() *schema.Provider {
         Required:    true,
         Sensitive:   true,
       },
+      "skip_tls_verify": {
+        Type:        schema.TypeBool,
+        Optional:    true,
+        Sensitive:   false,
+        Default: false,
+        Description: "Skip TLS certificate verification (insecure, use only for testing)",
+      },
     },
     ResourcesMap: map[string]*schema.Resource{
       "ranger_policy": resourcePolicy(),
