@@ -18,4 +18,44 @@
   </picture>
 </a>
 
-Terraform provider for Aapache Ranger.
+Terraform provider for Apache Ranger.
+
+## Building the Provider
+
+### Prerequisites
+
+- Go 1.23.7 or later
+- Install [terraform-plugin-docs](https://github.com/hashicorp/terraform-plugin-docs)
+
+### Development
+
+- Build
+
+  ```bash
+  make build
+  ```
+
+- Test
+
+  ```bash
+  make test
+  ```
+
+- Generate docs
+
+  ```bash
+  make docs-gen
+  ```
+
+### Install for Local Development
+
+Modify your `~/.terraformrc` file with following content.
+
+```text title="~/.terraformrc"
+provider_installation {
+  dev_overrides {
+    "svdimchenko/ranger" = "path-to-repo/terraform-provider-ranger/dist"
+  }
+  direct {}
+}
+```
