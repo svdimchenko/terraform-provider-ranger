@@ -16,7 +16,7 @@ func parsePolicyResponse(respBody []byte, d *schema.ResourceData) (string, diag.
 		return "", diag.FromErr(err)
 	}
 
-	// Read the ID field as int
+	// Read the ID field as int and set it as resource ID
 	if idValue, ok := data["id"]; ok {
 		if id, ok := idValue.(float64); ok {
 			d.SetId(fmt.Sprintf("%d", int(id)))
