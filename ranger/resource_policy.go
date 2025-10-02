@@ -10,6 +10,38 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
+func parsePolicyResponse(respBody []byte, d *schema.ResourceData) (string, diag.Diagnostics) {
+	var data map[string]interface{}
+	if err := json.Unmarshal(respBody, &data); err != nil {
+		return "", diag.FromErr(err)
+	}
+
+	// Read the ID field as int
+	if idValue, ok := data["id"]; ok {
+		if id, ok := idValue.(float64); ok {
+			d.SetId(fmt.Sprintf("%d", int(id)))
+		}
+	}
+
+	// Remove redundant policy keys from terraform state
+	delete(data, "id")
+	delete(data, "guid")
+	delete(data, "createdBy")
+	delete(data, "updatedBy")
+	delete(data, "createTime")
+	delete(data, "updateTime")
+	delete(data, "version")
+	delete(data, "resourceSignature")
+
+	// Convert back to JSON
+	cleanedJSON, err := json.Marshal(data)
+	if err != nil {
+		return "", diag.FromErr(err)
+	}
+	return string(cleanedJSON), nil
+}
+
+
 func resourcePolicy() *schema.Resource {
   return &schema.Resource{
     CreateContext: resourcePolicyCreate,
@@ -35,18 +67,11 @@ func resourcePolicy() *schema.Resource {
                 return nil, fmt.Errorf("failed to import Ranger policy (ID: %s): %s", policyID, resp.String())
             }
 
-            // Parse response JSON
-            var policy struct {
-                ID int `json:"id"`
+            cleanedDef, diags := parsePolicyResponse(resp.Body(), d)
+            if diags != nil {
+                return nil, fmt.Errorf("failed to parse policy response: %v", diags)
             }
-
-            if err := json.Unmarshal(resp.Body(), &policy); err != nil {
-                return nil, fmt.Errorf("failed to parse policy JSON: %v", err)
-            }
-
-            // Set Terraform state
-            d.SetId(fmt.Sprintf("%d", policy.ID))
-            d.Set("definition", string(resp.Body()))
+            d.Set("definition", cleanedDef)
             return []*schema.ResourceData{d}, nil
         },
     },
@@ -111,18 +136,12 @@ func resourcePolicyRead(ctx context.Context, d *schema.ResourceData, m interface
     return diag.Errorf("Failed to read policy: %s", resp.String())
   }
 
-  // Parse response JSON
-	var policy struct {
-		ID int `json:"id"`
-	}
+  cleanedDef, diags := parsePolicyResponse(resp.Body(), d)
+  if diags != nil {
+      return diags
+  }
+  d.Set("definition", cleanedDef)
 
-	if err := json.Unmarshal(resp.Body(), &policy); err != nil {
-		return diag.FromErr(err)
-	}
-
-	// Use API-provided ID
-	d.SetId(fmt.Sprintf("%d", policy.ID))
-  d.Set("definition", string(resp.Body()))
   return nil
 }
 
