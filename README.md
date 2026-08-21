@@ -1,3 +1,5 @@
+Archived: moved to https://github.com/gr8-toolkit/terraform-provider-ranger
+
 <!-- markdownlint-disable first-line-h1 no-inline-html MD013 -->
 <a href="https://terraform.io">
   <picture>
